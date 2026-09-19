@@ -1,0 +1,1319 @@
+---
+title: "Seminar 1"
+subtitle: "Human Prion Disease - Statistical Analysis"
+author: "CM2018 Group"
+date: last-modified
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    embed-resources: true
+execute:
+  echo: true
+  warning: false
+  message: false
+  error: false
+fig-width: 11
+fig-height: 7
+fig-align: center
+---
+
+## Before rendering
+
+Keep `T1_data.csv`, `T3_data.csv` and `T4_data.csv` in the same working directory. Task 2 also requires `CM2018rpackage`. The analyses are connected: Task 2 uses `t1`, while Task 4 uses `t3`.
+
+```{r}
+#| echo: false
+#| output: false
+# ============================================================================
+# SEMINAR 1 - TASKS 1, 2, 3 AND 4
+# ============================================================================
+#
+# Keep T1_data.csv, T3_data.csv and T4_data.csv in your working directory.
+# In RStudio: Session > Set Working Directory > Choose Directory.
+#
+# Run the script in sections using Ctrl+Enter.
+# Use Source with Echo if you want to run everything and see the outputs.
+# Plots appear in the Plots pane: use the back arrow to revisit earlier plots.
+# Use Zoom to see figures with several panels.
+#
+# Only Task 2 requires CM2018rpackage.
+#
+# Optional: uncomment the following line to save all plots in one PDF.
+# Also uncomment dev.off() at the very end.
+# pdf("Seminar_1_plots.pdf", width = 12, height = 8)
+
+
+# ============================================================================
+```
+
+# Task 1 - Biomarker investigation
+
+**Research focus:** Do plasma NfL and Tau differ between Healthy and Disease participants?
+
+```{r}
+#| echo: false
+#| output: false
+# TASK 1 - COMPARE HEALTHY AND DISEASE PARTICIPANTS
+# ============================================================================
+
+# QUESTION:
+# Do NfL and Tau differ between Healthy and Disease participants?
+#
+# Both biomarkers are continuous and positive.
+# Group is categorical, with two levels.
+# We assume independent groups because identified matched pairs are not supplied.
+
+
+```
+
+## 1.1 Import and check the data
+
+Validate the imported dataset before making statistical claims.
+
+```{r}
+# 1.1 IMPORT AND CHECK THE DATA
+
+t1 <- read.csv("T1_data.csv")
+
+t1$Group <- factor(
+  t1$Group,
+  levels = c("Healthy", "Disease")
+)
+
+# Healthy is the reference group in lm() and appears first in plots.
+
+str(t1)
+head(t1)
+summary(t1)
+
+table(t1$Group)
+# OUTPUT: Healthy = 25; Disease = 15.
+
+colSums(is.na(t1))
+# OUTPUT: no missing values.
+
+anyDuplicated(t1$ID)
+# OUTPUT: 0, meaning no repeated participant IDs.
+
+any(t1$NfL <= 0)
+any(t1$Tau <= 0)
+# OUTPUT: FALSE for both biomarkers.
+# All values are positive, so log() can be applied.
+#
+# Unequal group sizes alone do not establish independence.
+# The assignment mentions matching, but its structure is not documented.
+
+
+```
+
+## 1.2 Descriptive statistics
+
+Describe location and spread on both arithmetic and multiplicative scales.
+
+```{r}
+# 1.2 DESCRIPTIVE STATISTICS
+
+aggregate(cbind(NfL, Tau) ~ Group, data = t1, FUN = mean)
+
+# Arithmetic means, in pg/mL:
+# Group        NfL       Tau
+# Healthy    32.9196    1.6892
+# Disease    58.8940    2.9393
+
+aggregate(cbind(NfL, Tau) ~ Group, data = t1, FUN = sd)
+
+# Standard deviations, in pg/mL:
+# Group        NfL       Tau
+# Healthy    22.7697    1.4210
+# Disease    40.4833    2.2963
+#
+# SD describes variation between participants.
+# It is different from the standard error of an estimated mean.
+
+aggregate(cbind(NfL, Tau) ~ Group, data = t1, FUN = median)
+
+# Medians, in pg/mL:
+# Group        NfL       Tau
+# Healthy     27.02      1.22
+# Disease     40.83      2.50
+
+aggregate(
+  cbind(NfL, Tau) ~ Group,
+  data = t1,
+  FUN = function(x) exp(mean(log(x)))
+)
+
+# Geometric means, in pg/mL:
+# Group        NfL       Tau
+# Healthy    27.0902    1.2724
+# Disease    46.4691    2.1884
+#
+# The geometric mean is exp(the mean of the logarithms).
+# For values 10, 20 and 40:
+# arithmetic mean = 23.33; geometric mean = 20.
+#
+# The log transformation expresses proportional changes as differences.
+# Doubling any value adds log(2).
+# Exponentiating a difference between mean logs gives a geometric-mean ratio.
+#
+# "~ Group" means that the calculations are performed separately by group.
+# cbind(NfL, Tau) allows both biomarkers to be summarised together.
+
+
+```
+
+## 1.3 Compare original and log scales
+
+Compare the original and log scales while retaining every participant.
+
+```{r}
+# 1.3 COMPARE ORIGINAL AND LOG SCALES
+
+par(mfrow = c(2, 2))
+
+boxplot(
+  NfL ~ Group, data = t1,
+  main = "NfL: original scale",
+  ylab = "NfL (pg/mL)",
+  col = c("lightblue", "salmon"),
+  outline = FALSE
+)
+
+stripchart(
+  NfL ~ Group, data = t1,
+  vertical = TRUE, method = "jitter",
+  add = TRUE, pch = 16,
+  col = rgb(0, 0, 0, 0.5)
+)
+
+boxplot(
+  log(NfL) ~ Group, data = t1,
+  main = "NfL: log scale",
+  ylab = "log(NfL)",
+  col = c("lightblue", "salmon"),
+  outline = FALSE
+)
+
+stripchart(
+  log(NfL) ~ Group, data = t1,
+  vertical = TRUE, method = "jitter",
+  add = TRUE, pch = 16,
+  col = rgb(0, 0, 0, 0.5)
+)
+
+boxplot(
+  Tau ~ Group, data = t1,
+  main = "Tau: original scale",
+  ylab = "Tau (pg/mL)",
+  col = c("lightblue", "salmon"),
+  outline = FALSE
+)
+
+stripchart(
+  Tau ~ Group, data = t1,
+  vertical = TRUE, method = "jitter",
+  add = TRUE, pch = 16,
+  col = rgb(0, 0, 0, 0.5)
+)
+
+boxplot(
+  log(Tau) ~ Group, data = t1,
+  main = "Tau: log scale",
+  ylab = "log(Tau)",
+  col = c("lightblue", "salmon"),
+  outline = FALSE
+)
+
+stripchart(
+  log(Tau) ~ Group, data = t1,
+  vertical = TRUE, method = "jitter",
+  add = TRUE, pch = 16,
+  col = rgb(0, 0, 0, 0.5)
+)
+
+par(mfrow = c(1, 1))
+
+# Each point is one participant.
+# The line inside the box is the median.
+# The box contains the middle 50% of observations; it is not a confidence interval.
+# outline = FALSE avoids drawing outlier points twice.
+# Those observations are still shown by stripchart() and retained in the analysis.
+#
+# INTERPRETATION:
+# The original distributions are right-skewed.
+# The log transformation compresses high values and improves symmetry.
+# Disease tends to have higher values, but the groups overlap.
+
+
+```
+
+## 1.4 Residual Q-Q plots
+
+Use model residuals to assess whether the log scale better supports the normal approximation.
+
+```{r}
+# 1.4 RESIDUAL Q-Q PLOTS
+
+nfl_raw_model <- lm(NfL ~ Group, data = t1)
+nfl_log_model <- lm(log(NfL) ~ Group, data = t1)
+
+tau_raw_model <- lm(Tau ~ Group, data = t1)
+tau_log_model <- lm(log(Tau) ~ Group, data = t1)
+
+par(mfrow = c(2, 2))
+
+qqnorm(residuals(nfl_raw_model), main = "NfL: raw residuals")
+qqline(residuals(nfl_raw_model), col = "red")
+
+qqnorm(residuals(nfl_log_model), main = "NfL: log residuals")
+qqline(residuals(nfl_log_model), col = "blue")
+
+qqnorm(residuals(tau_raw_model), main = "Tau: raw residuals")
+qqline(residuals(tau_raw_model), col = "red")
+
+qqnorm(residuals(tau_log_model), main = "Tau: log residuals")
+qqline(residuals(tau_log_model), col = "blue")
+
+par(mfrow = c(1, 1))
+
+# Residual = observed value - fitted value.
+# With Group as the only predictor, the fitted value is the group mean
+# on the scale used in the model.
+#
+# The Q-Q plot compares ordered residuals with normal-distribution quantiles.
+# A roughly straight pattern supports approximate normality.
+# Log-scale residuals follow the reference line more closely here.
+#
+# A Q-Q plot does not prove normality or test the Healthy-Disease difference.
+# It also does not check independence or equality of variances.
+#
+# These lm() models are used for diagnostics.
+# Ordinary lm() coefficient tests assume a common residual variance.
+# The Welch tests below allow unequal variances.
+
+
+```
+
+## 1.5 Welch test for NfL
+
+Test NfL and express the mean-log difference as a Disease/Healthy geometric-mean ratio.
+
+```{r}
+# 1.5 WELCH TEST FOR NfL
+
+nfl_disease <- log(t1$NfL[t1$Group == "Disease"])
+nfl_healthy <- log(t1$NfL[t1$Group == "Healthy"])
+
+nfl_test <- t.test(
+  nfl_disease,
+  nfl_healthy,
+  alternative = "two.sided",
+  var.equal = FALSE
+)
+
+nfl_test
+
+nfl_ratio <- exp(nfl_test$estimate[1] - nfl_test$estimate[2])
+nfl_ratio_CI <- exp(nfl_test$conf.int)
+
+nfl_ratio
+nfl_ratio_CI
+nfl_test$p.value
+
+# H0: equal population means of log(NfL).
+# Equivalently, the Disease/Healthy geometric-mean ratio equals 1.
+#
+# Disease is the first argument, so the difference is Disease - Healthy.
+# var.equal = FALSE selects Welch's test.
+# It does not test whether the variances are equal.
+#
+# KEY OUTPUTS:
+# t = 2.3473; df = 25.7209; p = 0.0268883.
+# Difference in mean logs = 0.539618.
+# Disease/Healthy geometric-mean ratio = 1.715351.
+# Individual 95% CI for the ratio = [1.069115, 2.752211].
+#
+# REPORT SENTENCE:
+# "Geometric-mean NfL was estimated to be 71.5% higher in Disease than Healthy
+# participants (ratio 1.715, unadjusted 95% CI 1.069-2.752; Welch p = 0.027)."
+
+
+```
+
+## 1.6 Welch test for Tau
+
+Repeat the same pre-defined comparison for Tau.
+
+```{r}
+# 1.6 WELCH TEST FOR TAU
+
+tau_disease <- log(t1$Tau[t1$Group == "Disease"])
+tau_healthy <- log(t1$Tau[t1$Group == "Healthy"])
+
+tau_test <- t.test(
+  tau_disease,
+  tau_healthy,
+  alternative = "two.sided",
+  var.equal = FALSE
+)
+
+tau_ratio <- exp(tau_test$estimate[1] - tau_test$estimate[2])
+tau_ratio_CI <- exp(tau_test$conf.int)
+
+tau_test
+tau_ratio
+tau_ratio_CI
+tau_test$p.value
+
+# KEY OUTPUTS:
+# t = 2.0689; df = 27.3590; p = 0.0481218.
+# Disease/Healthy geometric-mean ratio = 1.719912.
+# Individual 95% CI = [1.004820, 2.943909].
+#
+# REPORT SENTENCE:
+# "Geometric-mean Tau was estimated to be 72.0% higher in Disease than Healthy
+# participants (ratio 1.720, unadjusted 95% CI 1.005-2.944; Welch p = 0.048)."
+#
+# The interval is wide and its lower limit is very close to 1.
+# Avoid rounding that lower limit to 1.00 when discussing significance.
+#
+# A p-value is not the probability that H0 is true.
+# It describes how unusual the observed test result would be under H0
+# and the assumptions of the test.
+
+
+```
+
+## 1.7 Consider the two biomarkers together
+
+Account for analysing two biomarkers and state the exploratory conclusion.
+
+```{r}
+# 1.7 CONSIDER THE TWO BIOMARKERS TOGETHER
+
+t1_p_values <- c(NfL = nfl_test$p.value, Tau = tau_test$p.value)
+
+p.adjust(t1_p_values, method = "holm")
+
+# OUTPUT: approximately 0.0537766 for both biomarkers.
+#
+# Both individual tests have p < 0.05.
+# After Holm adjustment for the two tests, neither has adjusted p < 0.05.
+# This does not prove equality or absence of an association.
+# The individual confidence intervals above are not adjusted for multiplicity.
+#
+# FINAL TASK 1 STATEMENT:
+# "Both biomarkers had higher estimated geometric means in Disease.
+# However, both Holm-adjusted p-values were approximately 0.054.
+# The analysis is exploratory, and the small Disease sample, wide confidence
+# intervals and undocumented matching limit the conclusions.
+# These comparisons do not establish diagnostic accuracy or causation."
+
+
+# ============================================================================
+```
+
+**Key conclusion:** Both biomarkers had higher estimated geometric means in Disease. The Disease/Healthy ratios were 1.715 for NfL and 1.720 for Tau. Both individual p-values were below 0.05, but both Holm-adjusted p-values were approximately 0.054. The evidence is exploratory and limited by the small Disease sample and undocumented matching.
+
+# Task 2 - Clinical study
+
+**Research focus:** How many patients are needed to detect a 20% reduction in geometric-mean NfL?
+
+```{r}
+#| echo: false
+#| output: false
+# TASK 2 - PLAN AND ANALYSE A CLINICAL TRIAL
+# ============================================================================
+
+# QUESTION:
+# How many patients are needed to detect a 20% reduction in geometric-mean
+# NfL at three months?
+#
+# Both groups now have prion disease: Treatment versus Control.
+
+
+```
+
+## 2.1 Calculate the sample size
+
+Use the Task 1 Disease-group variability to plan a two-arm trial.
+
+```{r}
+# 2.1 CALCULATE THE SAMPLE SIZE
+
+sd_log <- sd(log(t1$NfL[t1$Group == "Disease"]))
+sd_log
+
+# OUTPUT: 0.745827.
+# Use Disease participants because the new trial includes patients in both arms.
+#
+# A 20% reduction means GM_Treatment / GM_Control = 0.80.
+# For example, reducing a geometric mean from 50 to 40:
+# log(40) - log(50) = log(0.80) = approximately -0.22314.
+
+sample_size <- power.t.test(
+  delta = abs(log(0.80)),
+  sd = sd_log,
+  sig.level = 0.05,
+  power = 0.80,
+  type = "two.sample",
+  alternative = "two.sided"
+)
+
+sample_size
+
+n_per_arm <- ceiling(sample_size$n)
+total_n <- 2 * n_per_arm
+
+n_per_arm
+total_n
+
+# OUTPUT: approximately 176.33 per group.
+# Round upwards to 177 per group: 354 participants in total.
+#
+# abs() uses the magnitude of the log difference.
+# ceiling() rounds upwards to a whole number of participants.
+#
+# Alpha = 0.05 controls false positives under the null hypothesis.
+# Power = 0.80 means about an 80% probability of detecting a difference when
+# the true reduction is 20% and the planning assumptions are correct.
+# It is not an 80% probability that the treatment works.
+#
+# power.t.test() assumes a common SD for independent groups.
+# This is an approximate planning calculation for the later Welch analysis.
+# The SD estimate comes from only 15 patients and is therefore uncertain.
+# The required 354 participants must have usable outcomes; losses would
+# require additional recruitment.
+#
+# REPORT SENTENCE:
+# "Using the Disease-group SD of log(NfL), a two-sided significance level
+# of 5% and 80% power, we recommend 177 evaluable participants per arm
+# to detect a 20% reduction in geometric-mean NfL."
+
+
+```
+
+## 2.2 Specify the analysis plan before generating data
+
+Fix the hypotheses, analysis scale and reporting strategy before generating data.
+
+```{r}
+# 2.2 SPECIFY THE ANALYSIS PLAN BEFORE GENERATING DATA
+
+# Outcome: NfL at three months.
+# Groups: Treatment and Control, assumed independent.
+# Identified matched pairs are not supplied.
+# Primary analysis: two-sided Welch t-test on log(NfL).
+# Significance level: 0.05.
+# H0: GM_Treatment / GM_Control = 1.
+# H1: GM_Treatment / GM_Control differs from 1.
+# Report: geometric-mean ratio, 95% CI and p-value.
+#
+# The target ratio of 0.80 is used for planning.
+# The null hypothesis concerns a ratio of 1, meaning no difference.
+#
+# Check log-scale distributions and Q-Q plots within each arm.
+# Report missing outcomes by arm and analyse available valid measurements.
+# Acknowledge possible bias from missing outcomes.
+# Investigate data errors, but do not remove valid observations merely
+# because they look unusual.
+#
+# If assumptions fail seriously, report this and label any alternative
+# analysis as a sensitivity analysis.
+# Do not choose a test simply because it produces a smaller p-value.
+#
+# There is one primary outcome and one comparison, so no multiplicity
+# correction is needed for the primary analysis.
+
+
+```
+
+## 2.3 Recruitment feasibility
+
+Translate annual disease incidence into an approximate recruitment timeline.
+
+```{r}
+# 2.3 RECRUITMENT FEASIBILITY
+
+# Population: 10 million.
+# Incidence: 1-2 cases per million per year.
+# This gives 10-20 new cases per year.
+#
+# If 20-80% meet the inclusion criteria:
+# least favourable extreme = 10 * 0.20 = 2 eligible patients/year.
+# most favourable extreme = 20 * 0.80 = 16 eligible patients/year.
+
+eligible_per_year <- c(2, 16)
+years_to_recruit <- total_n / eligible_per_year
+
+years_to_recruit
+
+# OUTPUT: 177 years at 2/year; 22.125 years at 16/year.
+#
+# This assumes that all eligible patients participate and have usable outcomes.
+# Add three months of follow-up after the last participant is enrolled.
+#
+# REPORT SENTENCE:
+# "Recruitment would take approximately 22-177 years at a single centre
+# under the stated assumptions. The proposed single-centre study is unlikely
+# to be feasible; recruitment across several regions would be needed."
+
+
+```
+
+## 2.4 Generate one trial
+
+Generate one reproducible trial at the recommended sample size.
+
+```{r}
+# 2.4 GENERATE ONE TRIAL
+
+library(CM2018rpackage)
+
+# If hpd_trial_data() is unavailable, update the course package once:
+# install.packages("devtools")
+# devtools::install_github("adamdarwichkth/CM2018rpackage")
+# Restart R after updating.
+
+set.seed(20260910)
+trial <- hpd_trial_data(n_per_arm)
+
+head(trial)
+table(trial$Group)
+colSums(is.na(trial))
+
+# OUTPUT: 177 in Group 0 (Control) and 177 in Group 1 (Treatment).
+# The example contains no missing outcomes.
+#
+# The generator restarts ID numbering within each arm.
+# These repeated labels do not identify matched patient pairs.
+#
+# set.seed() makes the example reproducible with the same generator version.
+
+trial$Group <- factor(
+  trial$Group,
+  levels = c(0, 1),
+  labels = c("Control", "Treatment")
+)
+
+
+```
+
+## 2.5 Apply the pre-specified analysis
+
+Apply the pre-specified log-scale Welch analysis to the generated trial.
+
+```{r}
+# 2.5 APPLY THE PRE-SPECIFIED ANALYSIS
+
+treatment <- log(trial$NfL[trial$Group == "Treatment"])
+control <- log(trial$NfL[trial$Group == "Control"])
+
+trial_test <- t.test(
+  treatment,
+  control,
+  alternative = "two.sided",
+  var.equal = FALSE
+)
+
+trial_test
+
+trial_ratio <- exp(trial_test$estimate[1] - trial_test$estimate[2])
+trial_ratio_CI <- exp(trial_test$conf.int)
+
+trial_ratio
+trial_ratio_CI
+trial_test$p.value
+
+# OUTPUT for the previously checked generator and seed:
+# Treatment/Control ratio = 0.749617.
+# 95% CI = [0.678611, 0.828053].
+# Welch p = 2.60014e-08.
+#
+# (1 - ratio) * 100 gives the estimated percentage reduction: about 25.0%.
+# The CI corresponds to approximately 17.2% to 32.1% lower NfL.
+#
+# REPORT SENTENCE:
+# "In the simulated trial, geometric-mean NfL was approximately 25% lower
+# in Treatment than Control (ratio 0.750, 95% CI 0.679-0.828; p < 0.001)."
+#
+# These are simulated results, not observations from an actual clinical trial.
+
+par(mfrow = c(1, 1))
+
+boxplot(
+  log(NfL) ~ Group, data = trial,
+  outline = FALSE,
+  col = c("lightblue", "salmon"),
+  ylab = "log(NfL)",
+  main = "Task 2: NfL at three months"
+)
+
+stripchart(
+  log(NfL) ~ Group, data = trial,
+  vertical = TRUE, method = "jitter",
+  add = TRUE, pch = 16,
+  col = rgb(0, 0, 0, 0.35)
+)
+
+par(mfrow = c(1, 2))
+
+qqnorm(control, main = "Control: log(NfL)")
+qqline(control, col = "blue")
+
+qqnorm(treatment, main = "Treatment: log(NfL)")
+qqline(treatment, col = "red")
+
+par(mfrow = c(1, 1))
+
+# Roughly straight Q-Q patterns support the normal approximation on the log scale.
+# They do not test the treatment difference or establish independence.
+
+
+```
+
+## 2.6 Repeat the study
+
+Repeat the trial to demonstrate the long-run meaning of power and sampling variability.
+
+```{r}
+# 2.6 REPEAT THE STUDY
+
+set.seed(123)
+
+p_values <- replicate(100, {
+
+  new_trial <- hpd_trial_data(n_per_arm)
+
+  result <- t.test(
+    log(new_trial$NfL[new_trial$Group == 1]),
+    log(new_trial$NfL[new_trial$Group == 0]),
+    var.equal = FALSE
+  )
+
+  result$p.value
+})
+
+head(p_values)
+sum(p_values < 0.05)
+mean(p_values < 0.05)
+
+# replicate() generates and analyses 100 separate trials.
+# sum() counts significant results.
+# mean() calculates the significant fraction because TRUE = 1 and FALSE = 0.
+#
+# With the generator checked for this exercise, the fraction is expected
+# to be very close to 1. Use the output above to report your actual result.
+# Even 100 significant results out of 100 would not prove exactly 100% power.
+#
+# WHY MIGHT THE FRACTION EXCEED 0.80?
+# Planning used a ratio of 0.80 and SD_log = 0.745827.
+# The checked course generator uses a ratio of 0.75 and SD_log = 0.4660144.
+# A larger effect and smaller variability make detection easier.
+#
+# Generator source:
+# https://github.com/adamdarwichkth/CM2018rpackage/blob/main/R/hello.R
+#
+# FINAL TASK 2 STATEMENT:
+# "Task 1 was exploratory because the observed distributions informed our
+# analysis choices. Task 2 follows a confirmatory approach within a simulation
+# exercise: the outcome, sample size and analysis were specified beforehand.
+# Replicated trials produce different estimates and p-values.
+# Biomarker reduction alone does not establish improved clinical outcomes."
+
+
+# ============================================================================
+```
+
+**Key conclusion:** Using the Disease-group SD of log(NfL), the planned study requires 177 evaluable participants per arm. At 2 to 16 eligible patients per year, single-centre recruitment would take approximately 22 to 177 years. The generated trial is simulated rather than real patient evidence.
+
+# Task 3 - Dose-finding study
+
+**Research focus:** Does each experimental dose change geometric-mean NfL compared with Control?
+
+```{r}
+#| echo: false
+#| output: false
+# TASK 3 - COMPARE THREE DOSES WITH CONTROL
+# ============================================================================
+
+# QUESTION:
+# Does each dose change geometric-mean NfL compared with Control?
+#
+# Planned comparisons: Low-Control, Medium-Control and High-Control.
+# We are interested in reductions, but use two-sided tests to allow for
+# differences in either direction.
+
+
+```
+
+## 3.1 Import and describe the data
+
+Check the four-arm dataset and compare descriptive summaries.
+
+```{r}
+# 3.1 IMPORT AND DESCRIBE THE DATA
+
+# The first CSV column contains exported row numbers.
+t3 <- read.csv("T3_data.csv", row.names = 1)
+
+t3$Group <- factor(
+  t3$Group,
+  levels = c("Control", "Low", "Medium", "High")
+)
+
+str(t3)
+table(t3$Group)
+colSums(is.na(t3))
+anyDuplicated(t3$ID)
+any(t3$NfL <= 0)
+
+# OUTPUT: 120 participants, 30 per group.
+# No missing values, repeated IDs or non-positive NfL values.
+
+aggregate(NfL ~ Group, data = t3, FUN = mean)
+aggregate(NfL ~ Group, data = t3, FUN = median)
+
+aggregate(
+  NfL ~ Group,
+  data = t3,
+  FUN = function(x) exp(mean(log(x)))
+)
+
+# KEY OUTPUTS, in pg/mL:
+# Group     Arithmetic mean    Median    Geometric mean
+# Control        83.928        66.412         69.884
+# Low            53.113        38.853         42.134
+# Medium         46.084        43.262         39.361
+# High           52.547        44.202         46.085
+#
+# All three dose groups have lower estimated geometric means than Control.
+# These summaries do not yet account for sampling uncertainty.
+
+
+```
+
+## 3.2 Visualise original and log scales
+
+Show individual observations on the original and log scales.
+
+```{r}
+# 3.2 VISUALISE ORIGINAL AND LOG SCALES
+
+dose_colours <- c("grey80", "lightblue", "gold", "salmon")
+
+par(mfrow = c(1, 2))
+
+boxplot(
+  NfL ~ Group, data = t3,
+  outline = FALSE, col = dose_colours,
+  main = "Task 3: original scale",
+  ylab = "NfL (pg/mL)"
+)
+
+stripchart(
+  NfL ~ Group, data = t3,
+  vertical = TRUE, method = "jitter",
+  add = TRUE, pch = 16,
+  col = rgb(0, 0, 0, 0.4)
+)
+
+boxplot(
+  log(NfL) ~ Group, data = t3,
+  outline = FALSE, col = dose_colours,
+  main = "Task 3: log scale",
+  ylab = "log(NfL)"
+)
+
+stripchart(
+  log(NfL) ~ Group, data = t3,
+  vertical = TRUE, method = "jitter",
+  add = TRUE, pch = 16,
+  col = rgb(0, 0, 0, 0.4)
+)
+
+par(mfrow = c(1, 1))
+
+# The original data are right-skewed.
+# The log scale improves symmetry and supports proportional interpretation.
+
+
+```
+
+## 3.3 Global comparison: linear model and ANOVA
+
+Use a global F-test to ask whether all four mean log(NfL) values could be equal.
+
+```{r}
+# 3.3 GLOBAL COMPARISON: LINEAR MODEL AND ANOVA
+
+dose_model <- lm(log(NfL) ~ Group, data = t3)
+
+anova(dose_model)
+
+# Y = log(NfL).
+# X = Group, a categorical predictor with four levels.
+# Control is the reference group.
+#
+# OUTPUT: F(3, 116) = 5.3908; p = 0.001650.
+#
+# Global H0: all four population means of log(NfL) are equal.
+# There is evidence that at least one mean differs.
+# This does not identify which groups differ.
+# It also does not imply that every pair differs.
+
+
+```
+
+## 3.4 Check model assumptions
+
+Inspect residual normality and the variance pattern across the four groups.
+
+```{r}
+# 3.4 CHECK MODEL ASSUMPTIONS
+
+par(mfrow = c(1, 2))
+
+plot(
+  fitted(dose_model),
+  residuals(dose_model),
+  pch = 16,
+  xlab = "Fitted log(NfL)",
+  ylab = "Residual",
+  main = "Residuals versus fitted"
+)
+
+abline(h = 0, col = "red")
+
+qqnorm(residuals(dose_model), main = "Task 3: residual Q-Q plot")
+qqline(residuals(dose_model), col = "blue")
+
+par(mfrow = c(1, 1))
+
+tapply(log(t3$NfL), t3$Group, sd)
+
+# OUTPUT:
+# Control = 0.601; Low = 0.694; Medium = 0.599; High = 0.525.
+#
+# Ordinary ANOVA assumes common residual variance and approximately normal
+# errors within groups. These SDs are reasonably similar; inspect the plots too.
+#
+# Four vertical bands in the residual plot are expected:
+# the model gives one fitted mean to each of the four groups.
+
+
+```
+
+## 3.5 Planned comparisons with Holm correction
+
+Compare each planned dose with Control while controlling multiplicity using Holm.
+
+```{r}
+# 3.5 PLANNED COMPARISONS WITH HOLM CORRECTION
+
+# Reuse Welch's test from Tasks 1 and 2.
+# Holm controls the false-positive risk across the three planned comparisons.
+# These comparisons were defined before inspecting their p-values.
+
+control_log <- log(t3$NfL[t3$Group == "Control"])
+low_log <- log(t3$NfL[t3$Group == "Low"])
+medium_log <- log(t3$NfL[t3$Group == "Medium"])
+high_log <- log(t3$NfL[t3$Group == "High"])
+
+low_test <- t.test(low_log, control_log, var.equal = FALSE)
+medium_test <- t.test(medium_log, control_log, var.equal = FALSE)
+high_test <- t.test(high_log, control_log, var.equal = FALSE)
+
+# The dose is always the first argument.
+# Exponentiating the difference therefore gives Dose/Control.
+
+dose_results <- data.frame(
+  Dose = c("Low", "Medium", "High"),
+
+  Ratio = exp(c(
+    low_test$estimate[1] - low_test$estimate[2],
+    medium_test$estimate[1] - medium_test$estimate[2],
+    high_test$estimate[1] - high_test$estimate[2]
+  )),
+
+  CI95_lower = exp(c(
+    low_test$conf.int[1],
+    medium_test$conf.int[1],
+    high_test$conf.int[1]
+  )),
+
+  CI95_upper = exp(c(
+    low_test$conf.int[2],
+    medium_test$conf.int[2],
+    high_test$conf.int[2]
+  )),
+
+  p_value = c(
+    low_test$p.value,
+    medium_test$p.value,
+    high_test$p.value
+  )
+)
+
+dose_results$p_Holm <- p.adjust(dose_results$p_value, method = "holm")
+
+dose_results
+
+# KEY OUTPUTS:
+# Dose      Ratio      Individual 95% CI       Raw p       Holm p
+# Low       0.6029     [0.4310, 0.8433]         0.003788     0.007575
+# Medium    0.5632     [0.4130, 0.7681]         0.000475     0.001425
+# High      0.6594     [0.4926, 0.8828]         0.005947     0.007575
+#
+# Use the Holm-adjusted p-values for decisions across the three comparisons.
+# Holm remains valid when the comparisons share a control group.
+# The displayed CIs are individual 95% intervals:
+# p.adjust() adjusts p-values, not confidence intervals.
+#
+# ANOVA and these comparisons answer related questions using the same data.
+# They are not independent replications.
+#
+# FINAL TASK 3 STATEMENT:
+# "All three doses showed lower geometric-mean NfL than Control after Holm
+# adjustment (all adjusted p < 0.01). Estimated reductions were 39.7% for Low,
+# 43.7% for Medium and 34.1% for High.
+# The pattern does not show a simple monotonic dose-response relationship.
+# Although Medium had the lowest estimate, these comparisons do not establish
+# that it is superior to the other active doses.
+# Lower NfL alone does not establish clinical benefit."
+
+
+# ============================================================================
+```
+
+**Key conclusion:** The global ANOVA found evidence that at least one mean log(NfL) differed. Low, Medium and High all had lower geometric-mean NfL than Control after Holm adjustment. Medium had the lowest point estimate, but the analysis did not establish superiority over the other doses.
+
+# Task 4 - Clinical outcomes
+
+**Research focus:** How does ordinal clinical response vary by treatment, and how is it related to NfL?
+
+```{r}
+#| echo: false
+#| output: false
+# TASK 4 - CLINICAL RESPONSE AND ITS RELATIONSHIP WITH NfL
+# ============================================================================
+
+# QUESTIONS:
+# How do clinical response categories differ across treatment arms?
+# How do those categories relate to NfL in the same participants?
+#
+# Response is ORDINAL.
+# Categories have an order, but equal distances between categories are not defined.
+# We do not calculate an arithmetic mean of the category labels.
+
+
+```
+
+## 4.1 Import and order the categories
+
+Represent the clinical outcome as ordered categories and identify missing responses.
+
+```{r}
+# 4.1 IMPORT AND ORDER THE CATEGORIES
+
+t4 <- read.csv("T4_data.csv", row.names = 1)
+
+t4$Group <- factor(
+  t4$Treatment,
+  levels = c(0, 1, 2, 3),
+  labels = c("Control", "Low", "Medium", "High")
+)
+
+response_levels <- c(
+  "Asymptomatic",
+  "No to slight symptoms",
+  "Moderate disability",
+  "Moderate to severe disability",
+  "Severe disability"
+)
+
+t4$Response <- factor(
+  t4$Response,
+  levels = response_levels,
+  ordered = TRUE
+)
+
+str(t4)
+table(t4$Group)
+table(t4$Response, useNA = "ifany")
+colSums(is.na(t4))
+anyDuplicated(t4$ID)
+
+t4[is.na(t4$Response), c("ID", "Group")]
+
+# OUTPUT: 120 participants, 30 per arm; no repeated IDs.
+# Missing responses: ID 8 in Control and ID 98 in High.
+#
+# Observed category counts:
+# Asymptomatic = 4.
+# No/slight symptoms = 8.
+# Moderate disability = 38.
+# Moderate/severe disability = 25.
+# Severe disability = 43.
+# Missing = 2.
+#
+# Keep missing responses as NA.
+# Clinical-response plots use the 118 observed responses.
+
+
+```
+
+## 4.2 Frequency and percentage tables
+
+Calculate counts and percentages within each treatment arm.
+
+```{r}
+# 4.2 FREQUENCY AND PERCENTAGE TABLES
+
+# Rows = response categories; columns = treatment groups.
+response_counts <- table(t4$Response, t4$Group)
+
+response_counts
+colSums(response_counts)
+
+# OUTPUT denominators: Control = 29; Low = 30; Medium = 30; High = 29.
+# table() excludes missing responses by default.
+
+response_percent <- 100 * prop.table(response_counts, margin = 2)
+
+round(response_percent, 1)
+
+# margin = 2 calculates percentages within columns, meaning within each group.
+#
+# COUNTS: Control / Low / Medium / High
+# Asymptomatic                  1 /  1 /  1 /  1
+# No to slight symptoms         1 /  1 /  3 /  3
+# Moderate disability           8 / 13 / 10 /  7
+# Moderate to severe            3 /  8 /  7 /  7
+# Severe disability            16 /  7 /  9 / 11
+#
+# Severe disability percentages:
+# Control = 55.2%; Low = 23.3%; Medium = 30.0%; High = 37.9%.
+
+
+```
+
+## 4.3 Visualise clinical response by treatment
+
+Display the complete ordinal response distribution across the four arms.
+
+```{r}
+# 4.3 VISUALISE CLINICAL RESPONSE BY TREATMENT
+
+response_colours <- c(
+  "#1A9850", "#91CF60", "#FEE08B", "#FC8D59", "#D73027"
+)
+
+par(mfrow = c(1, 1), mar = c(5, 5, 4, 2))
+
+barplot(
+  response_percent,
+  col = response_colours,
+  ylim = c(0, 140),
+  yaxt = "n",
+  ylab = "Observed responses (%)",
+  names.arg = c(
+    "Control\n(n = 29)",
+    "Low\n(n = 30)",
+    "Medium\n(n = 30)",
+    "High\n(n = 29)"
+  ),
+  main = "Task 4: clinical response by treatment"
+)
+
+axis(2, at = seq(0, 100, 20), las = 1)
+
+legend(
+  "top",
+  legend = c(
+    "Asymptomatic", "No/slight symptoms",
+    "Moderate", "Moderate/severe", "Severe"
+  ),
+  fill = response_colours,
+  ncol = 3,
+  bty = "n",
+  cex = 0.8
+)
+
+# Each bar represents 100% of available responses in that arm.
+# The space above 100% is used only for the legend.
+#
+# Control has the largest proportion classified as Severe disability.
+# The highest dose does not have the most favourable observed distribution.
+# These are descriptive comparisons; no clinical-outcome hypothesis test
+# has been performed.
+
+
+```
+
+## 4.4 Join Tasks 3 and 4 by participant ID
+
+Join clinical response to the Task 3 biomarker by participant ID.
+
+```{r}
+# 4.4 JOIN TASKS 3 AND 4 BY PARTICIPANT ID
+
+# Verify that each file contains unique IDs and the same set of participants.
+stopifnot(
+  anyDuplicated(t3$ID) == 0,
+  anyDuplicated(t4$ID) == 0,
+  setequal(t3$ID, t4$ID)
+)
+
+combined <- merge(
+  t3,
+  t4[, c("ID", "Treatment", "Response")],
+  by = "ID"
+)
+
+nrow(combined)
+# OUTPUT: 120.
+
+# merge() links the same person across files even if row orders differ.
+# Do not attach clinical responses by row position.
+
+group_names <- c("Control", "Low", "Medium", "High")
+
+all(
+  as.character(combined$Group) ==
+    group_names[combined$Treatment + 1]
+)
+# OUTPUT: TRUE; the treatment labels agree across the files.
+# +1 converts treatment codes 0-3 into vector positions 1-4.
+
+clinical <- combined[!is.na(combined$Response), ]
+
+nrow(clinical)
+# OUTPUT: 118 complete records for clinical-response plots.
+
+
+```
+
+## 4.5 Relate NfL to clinical severity
+
+Visualise how NfL varies across increasing levels of clinical severity.
+
+```{r}
+# 4.5 RELATE NfL TO CLINICAL SEVERITY
+
+aggregate(NfL ~ Response, data = clinical, FUN = median)
+
+# Median NfL in pg/mL, from least to most severe category:
+# Asymptomatic                 30.5955
+# No to slight symptoms        34.1845
+# Moderate disability          40.8800
+# Moderate to severe           47.1310
+# Severe disability            54.0970
+#
+# Overall medians increase with severity.
+# Individual observations still overlap substantially.
+
+short_response <- c(
+  "Asymptomatic",
+  "No/slight\nsymptoms",
+  "Moderate",
+  "Moderate/\nsevere",
+  "Severe"
+)
+
+par(mfrow = c(1, 1), mar = c(6, 4, 4, 2))
+
+boxplot(
+  log(NfL) ~ Response,
+  data = clinical,
+  names = short_response,
+  outline = FALSE,
+  col = response_colours,
+  cex.axis = 0.8,
+  ylab = "log(NfL)",
+  xlab = "",
+  main = "Task 4: NfL across clinical response categories"
+)
+
+stripchart(
+  log(NfL) ~ Response,
+  data = clinical,
+  vertical = TRUE,
+  method = "jitter",
+  add = TRUE,
+  pch = 16,
+  col = rgb(0, 0, 0, 0.45)
+)
+
+# Individual points show the small category sizes:
+# Asymptomatic contains only 4 participants and No/slight symptoms contains 8.
+# Boxes alone would hide this information.
+
+
+```
+
+## 4.6 Inspect the association within each treatment arm
+
+Check whether the overall biomarker-response pattern is also visible within each treatment arm.
+
+```{r}
+# 4.6 INSPECT THE ASSOCIATION WITHIN EACH TREATMENT ARM
+
+# Overall patterns can partly reflect differences between treatment groups.
+# Repeat the same plot separately for each arm.
+
+par(mfrow = c(2, 2), mar = c(6, 4, 3, 1))
+
+for (group in levels(clinical$Group)) {
+
+  group_data <- clinical[clinical$Group == group, ]
+
+  boxplot(
+    log(NfL) ~ Response,
+    data = group_data,
+    names = short_response,
+    outline = FALSE,
+    col = response_colours,
+    cex.axis = 0.65,
+    ylim = range(log(clinical$NfL)),
+    ylab = "log(NfL)",
+    xlab = "",
+    main = paste(group, "- n =", nrow(group_data))
+  )
+
+  stripchart(
+    log(NfL) ~ Response,
+    data = group_data,
+    vertical = TRUE,
+    method = "jitter",
+    add = TRUE,
+    pch = 16,
+    col = rgb(0, 0, 0, 0.45)
+  )
+}
+
+par(mfrow = c(1, 1), mar = c(5.1, 4.1, 4.1, 2.1))
+
+# The same y-axis range makes panels comparable.
+# Within-arm patterns are variable and some categories contain very few patients.
+# An overall association need not be equally strong within every treatment arm.
+#
+# Task 4 asks for visual exploration, so a formal ordinal model is not needed.
+#
+# FINAL TASK 4 STATEMENT:
+# "Severe disability was more frequent in Control (55.2%) than in the
+# treatment arms (23.3-37.9%) among observed responses.
+# Across all arms, median NfL increased with clinical severity, although
+# biomarker values overlapped and within-arm patterns were variable.
+# These findings are descriptive and exploratory.
+# Two missing responses and small category sizes limit interpretation.
+# The visual associations do not establish causation, treatment efficacy
+# on clinical outcomes, or NfL as a validated surrogate."
+
+
+# If you uncommented pdf() at the top, also uncomment the following line:
+# dev.off()
+```
+
+**Key conclusion:** Severe disability was observed most frequently in Control. Across all arms, median NfL increased with clinical severity, but observations overlapped and within-arm patterns were variable. The visual association does not establish causation or clinical efficacy.
