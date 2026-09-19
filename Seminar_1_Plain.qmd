@@ -21,6 +21,8 @@ fig-align: center
 
 viggy
 
+
+test2
 ## Before rendering
 
 Keep `T1_data.csv`, `T3_data.csv` and `T4_data.csv` in the same working directory. Task 2 also requires `CM2018rpackage`. The analyses are connected: Task 2 uses `t1`, while Task 4 uses `t3`.
